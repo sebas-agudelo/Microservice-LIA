@@ -6,8 +6,6 @@ export const dailyJob = async () => {
     cron.schedule("* * * * *", async () => {
       console.log("Startar sammanslagningsjobbet (varje minut)...");
       try {
-        // await mergeData(); // Kör mergeData-funktionen
-        // await reportService();
         await fetchReportData();
   
         console.log("Sammanslagningsjobb slutfört.");
