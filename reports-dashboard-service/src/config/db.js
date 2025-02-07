@@ -3,9 +3,9 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-export const dbConnection = () => {
+export const dbConnection = async () => {
   try {
-    const pollConnection = mysql.createPool({
+    const poolConnection = mysql.createPool({
       host: process.env.DB_HOST,
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
@@ -15,9 +15,8 @@ export const dbConnection = () => {
 
     console.log("Ansluten till databasen!");
 
-    return pollConnection;
-
+    return poolConnection;
   } catch (error) {
- console.error("Fel vid anslutning till databasen:", error);
+    console.error("Fel vid anslutning till databasen:", error);
   }
 };
