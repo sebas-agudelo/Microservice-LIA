@@ -2,128 +2,313 @@ import { dbConnection } from "../config/db.js";
 
 export const reportService = async () => {
   try {
-    const pool = await dbConnection();
+    console.time("time");
+    const { poolConnection, filteredDatabases } = await dbConnection();
 
-    const [viewRows] = await pool.query(`
-            SELECT campaign_id, view_r AS link, COUNT(view_r) AS views
-            FROM view
-            WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
-            GROUP BY campaign_id, view_r
-        `);
+    const allResults = await Promise.all(
+      filteredDatabases.map(async (db) => {
+        // await poolConnection.query(`DROP INDEX idx_view ON ${db}.view`);
+        // await poolConnection.query(`DROP INDEX idx_participant ON ${db}.participant`);
 
-    const [viewRows2] = await pool.query(`
-            SELECT campaign_id, COUNT(view_r) AS link,
-            COUNT(view_r) AS views
-            FROM view 
-            WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
-            GROUP BY campaign_id
-        `);
+        // await poolConnection.query(`CREATE INDEX idx_view ON ${db}.view (created)`);
+        // await poolConnection.query(`CREATE INDEX idx_participant ON ${db}.participant (created)`);
 
-    if (viewRows.length === 0 || viewRows2.length === 0) {
-      return;
-    }
+        console.log(`Procces börjad db: ${db}`);
 
-    const [LeadsAndPaidLeads] = await pool.query(`
-            SELECT p.campaign_id, p.location,
-            COUNT(CASE WHEN p.telephone IS NOT NULL OR p.name IS NOT NULL OR p.email IS NOT NULL THEN 1 END) AS leads,
-            COUNT(CASE WHEN p.status = 'PAID' THEN 1 END) AS paid_leads
-            FROM participant p
-            GROUP BY p.campaign_id, p.location
-
-            UNION 
-
-            SELECT p.campaign_id, NULL AS location,
-            COUNT(CASE WHEN p.telephone IS NOT NULL OR p.name IS NOT NULL OR p.email IS NOT NULL THEN 1 END) AS leads,
-            COUNT(CASE WHEN p.status = 'PAID' THEN 1 END) AS paid_leads
-            FROM participant p
-            GROUP BY p.campaign_id
-
-        `);
-
-    const [countUniqueLeads] = await pool.query(`
-            SELECT campaign_id, location,
-            COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads, 
-            COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
-            FROM participant
-            WHERE telephone IS NOT NULL
-            GROUP BY campaign_id, location
-
-            UNION
-
-            SELECT campaign_id, NULL AS location,
-            COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads, 
-            COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
-            FROM participant
-            WHERE telephone IS NOT NULL
-            GROUP BY campaign_id
-        `);
-
-    const [summUpMoneyReceived] = await pool.query(`
-            SELECT campaign_id, location, 
-            COUNT(*) AS giftcards_sent
-            FROM participant
-            WHERE coupon_sent = 1
-            GROUP BY campaign_id, location
-
-            UNION
-
-            SELECT campaign_id, NULL AS location, 
-            COUNT(*) AS giftcards_sent
-            FROM participant
-            WHERE coupon_sent = 1
-            GROUP BY campaign_id
-
-        `);
-
-    const [moneyMeceivedResult] = await pool.query(`
-            SELECT campaign_id, location,
-            SUM(amount) AS money_received
-            FROM participant
-            GROUP BY campaign_id, location
-
-            UNION
-
-            SELECT campaign_id, NULL AS location,
-            SUM(amount) AS money_received
-            FROM participant
-            GROUP BY campaign_id
-        `);
-
-    const [avaragePaymentResult] = await pool.query(`
-            SELECT 
-            campaign_id, location,
-            SUM(amount) AS money_received,
-            COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads,
+        const [
+          viewRows,
+          viewRows2,
+          leadsResult,
+          paidleadsResult,
+          uniqueLeadsResult,
+          recuringLeadsResult,
+          giftcardsSendResult,
+          moneyReceivedResult,
+          avaragePaymentResult,
+          engagementTimeResult,
+          answersPercentageResult,
+        ] = await Promise.all([
+          poolConnection.query(`
+          SELECT campaign_id, view_r AS link, COUNT(*) AS views
+          FROM ${db}.view
+          WHERE created >= '2024-10-03' AND created < '2024-10-04'
+          GROUP BY campaign_id, view_r
+        `),
+          poolConnection.query(`
+          SELECT campaign_id, COUNT(*) AS link,
+          COUNT(*) AS views
+          FROM ${db}.view
+          WHERE created >= '2024-10-03' AND created < '2024-10-04'
+          GROUP BY campaign_id
+        `),
+          poolConnection.query(`
+          SELECT 
+            p.campaign_id, 
             CASE 
-                WHEN COUNT(CASE WHEN status = 'PAID' THEN 1 END) > 0 THEN SUM(amount) / COUNT(CASE WHEN status = 'PAID' THEN 1 END)
-                ELSE 0
-            END AS avarage_payment
-            FROM participant
-            GROUP BY campaign_id, location
+              WHEN TRIM(p.location) IS NULL THEN 'NULL_VALUE' 
+              WHEN TRIM(p.location) = '' THEN 'EMPTY_STRING' 
+              ELSE TRIM(p.location) 
+            END AS location,
+            COUNT(CASE 
+              WHEN p.telephone IS NOT NULL OR p.name IS NOT NULL OR p.email IS NOT NULL 
+              THEN 1 
+            END) AS leads
+          FROM ${db}.participant p
+         WHERE created >= '2024-10-03' AND created < '2024-10-04'
+          GROUP BY p.campaign_id, location
+          
+          UNION ALL
+          
+          SELECT campaign_id, 'TOTAL' AS location,
+          COUNT(CASE WHEN p.telephone IS NOT NULL OR p.name IS NOT NULL OR p.email IS NOT NULL THEN 1 END) AS leads
+          FROM ${db}.participant p
+          WHERE created >= '2024-10-03' AND created < '2024-10-04'
+          GROUP BY p.campaign_id
+        `),
+          poolConnection.query(`
+                  SELECT campaign_id, 
+                  CASE 
+                  WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                  WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                  ELSE TRIM(location) 
+                  END AS location,
+                  COUNT(status = 'PAID') AS paid_leads
+                  FROM ${db}.participant 
+                  -- WHERE created >= CURDATE() - INTERVAL 1 DAY AND created < CURDATE()
+                  WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                  GROUP BY campaign_id, location
+          
+                  UNION ALL 
+          
+                      SELECT campaign_id, 'TOTAL' AS location,
+                      COUNT(status = 'PAID') AS paid_leads
+                  FROM ${db}.participant 
+                  -- WHERE created >= CURDATE() - INTERVAL 1 DAY AND created < CURDATE()
 
-            UNION 
+                  WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                      GROUP BY campaign_id
+                `),
 
-            SELECT campaign_id, NULL AS location,
-            SUM(amount) AS money_received,
-            COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads,
-            CASE 
-                WHEN COUNT(CASE WHEN status = 'PAID' THEN 1 END) > 0 THEN SUM(amount) / COUNT(CASE WHEN status = 'PAID' THEN 1 END)
-                ELSE 0
-            END AS avarage_payment
-            FROM participant
-            GROUP BY campaign_id
-            `);
+          poolConnection.query(`
+                          SELECT campaign_id,
+                          CASE 
+                          WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                          WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                          ELSE TRIM(location) 
+                          END AS location,
+                          COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads
+                          FROM ${db}.participant 
+                          WHERE telephone IS NOT NULL
+                          -- AND created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                          AND created >= '2024-10-03' AND created < '2024-10-04'
+                         
+                          GROUP BY campaign_id, location
+                  
+                           UNION ALL
+                  
+                              SELECT campaign_id, 'TOTAL' AS location,
+                              COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads
+                              FROM ${db}.participant 
+                          WHERE telephone IS NOT NULL
+                          -- AND created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                          AND created >= '2024-10-03' AND created < '2024-10-04'
+                      
+                              GROUP BY campaign_id
+                      `),
 
-    return {
-      viewRows,
-      viewRows2,
-      LeadsAndPaidLeads,
-      countUniqueLeads,
-      summUpMoneyReceived,
-      moneyMeceivedResult,
-      avaragePaymentResult,
-    };
+          poolConnection.query(`
+                        SELECT campaign_id,
+                        CASE 
+                        WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                        WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                        ELSE TRIM(location) 
+                        END AS location,
+                        COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
+                        FROM ${db}.participant 
+                        WHERE telephone IS NOT NULL
+                        -- AND created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                          AND created >= '2024-10-03' AND created < '2024-10-04'
+                  
+                        GROUP BY campaign_id, location
+                  
+                        UNION ALL
+                  
+                              SELECT campaign_id, 'TOTAL' AS location,
+                              COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
+                             FROM ${db}.participant 
+                        WHERE telephone IS NOT NULL
+                        -- AND created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                          AND created >= '2024-10-03' AND created < '2024-10-04'
+                             
+                              GROUP BY campaign_id
+                        `),
+
+          poolConnection.query(`
+                          SELECT campaign_id, 
+                          CASE 
+                          WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                          WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                          ELSE TRIM(location) 
+                          END AS location,
+                          COUNT(*) AS giftcards_sent
+                          FROM ${db}.participant 
+                          WHERE coupon_send = 1
+                          -- AND created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            AND created >= '2024-10-03' AND created < '2024-10-04'
+                  
+                          GROUP BY campaign_id, location 
+                  
+                          UNION ALL
+                  
+                              SELECT campaign_id, 'TOTAL' AS location, 
+                              COUNT(*) AS giftcards_sent
+                               FROM ${db}.participant 
+                          WHERE coupon_send = 1
+                          -- AND created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            AND created >= '2024-10-03' AND created < '2024-10-04'
+                  
+                              GROUP BY campaign_id
+                          `),
+
+          poolConnection.query(`
+                            SELECT campaign_id, 
+                              CASE 
+                            WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                            WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                            ELSE TRIM(location) 
+                            END AS location,
+
+                            SUM(amount) AS money_received
+
+                            FROM ${db}.participant
+                            WHERE status = 'PAID'
+
+                            AND created >= '2024-10-03' 
+                            AND created < '2024-10-04'
+                            GROUP BY campaign_id, location
+                  
+                            UNION ALL
+                  
+                            SELECT campaign_id, 'TOTAL' AS location,
+    
+                           SUM(amount) AS money_received
+                            FROM ${db}.participant
+                            -- WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            WHERE status = 'PAID'
+                           AND created >= '2024-10-03' AND created < '2024-10-04'
+                  
+                              GROUP BY campaign_id
+                        `),
+
+          poolConnection.query(`
+                            SELECT campaign_id, 
+    
+                            CASE 
+                                WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                                WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                                ELSE TRIM(location) 
+                            END AS location,
+
+                            SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) AS money_received,
+                            COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads,
+                            COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) / NULLIF(COUNT(CASE WHEN status = 'PAID' THEN 1 END), 0), 0) AS avarage_payment
+
+                            FROM ${db}.participant
+                            WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                            GROUP BY campaign_id, location
+
+                            UNION 
+
+                            SELECT campaign_id, 'TOTAL' AS location,
+                                SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) AS money_received,
+                                      COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads,
+                                      COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) / NULLIF(COUNT(CASE WHEN status = 'PAID' THEN 1 END), 0), 0) AS avarage_payment
+                            FROM ${db}.participant
+                            WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                            GROUP BY campaign_id
+                  
+                          `),
+
+          poolConnection.query(`
+                            SELECT campaign_id,
+                            CASE 
+                            WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                            WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                            ELSE TRIM(location) 
+                            END AS location,
+                            SUM(time_spent) AS engagement_time 
+                            FROM ${db}.participant 
+                            -- WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                            GROUP BY campaign_id, location 
+                  
+                            UNION ALL
+                  
+                              SELECT campaign_id, 'TOTAL' AS location,
+                              SUM(time_spent) AS engagement_time 
+                    FROM ${db}.participant 
+                            -- WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                              GROUP BY campaign_id
+                          `),
+
+          poolConnection.query(`
+                            SELECT campaign_id,
+                            CASE 
+                            WHEN TRIM(location) IS NULL THEN 'NULL_VALUE' 
+                            WHEN TRIM(location) = '' THEN 'EMPTY_STRING' 
+                            ELSE TRIM(location) 
+                            END AS location,
+                            COUNT(CASE WHEN status = 'ERROR' OR status = 'DECLINED' THEN 1 END) AS answers_percentage
+                            FROM ${db}.participant 
+                            -- WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                    
+                            GROUP BY campaign_id, location
+                            
+                            UNION ALL
+                  
+                              SELECT campaign_id, 'TOTAL' AS location,
+                              COUNT(CASE WHEN status = 'ERROR' OR status = 'DECLINED' THEN 1 END) AS answers_percentage
+                              FROM ${db}.participant 
+                            -- WHERE created >= DATE_SUB(NOW(), INTERVAL 1 DAY)
+                            WHERE created >= '2024-10-03' AND created < '2024-10-04'
+                             
+                              GROUP BY campaign_id;
+                          `),
+        ]);
+
+        console.log(`Process utförd db: ${db}`);
+        // console.log(viewRows);
+        // console.log(viewRows2);
+
+        return {
+          db,
+          viewRows: viewRows[0],
+          viewRows2: viewRows2[0],
+          leadsResult: leadsResult[0],
+          paidleadsResult: paidleadsResult[0],
+          uniqueLeadsResult: uniqueLeadsResult[0],
+          recuringLeadsResult: recuringLeadsResult[0],
+          giftcardsSendResult: giftcardsSendResult[0],
+          moneyReceivedResult: moneyReceivedResult[0],
+          avaragePaymentResult: avaragePaymentResult[0],
+          engagementTimeResult: engagementTimeResult[0],
+          answersPercentageResult: answersPercentageResult[0],
+        };
+      })
+    );
+
+    //     allResults.forEach((results) => {
+    //       console.log(results);
+
+    // })
+
+    console.timeEnd("time");
+
+    return allResults;
   } catch (error) {
     console.error("Error under databasoperation:", error);
+    throw error;
   }
 };
