@@ -2,7 +2,7 @@ import { dbConnection } from "../config/db.js";
 
 export const reportService = async () => {
   try {
-    console.time("time");
+
     const { poolConnection, filteredDatabases } = await dbConnection();
 
     const allResults = await Promise.all(
@@ -34,6 +34,7 @@ export const reportService = async () => {
           WHERE created >= '2024-10-03' AND created < '2024-10-04'
           GROUP BY campaign_id, view_r
         `),
+        
           poolConnection.query(`
           SELECT campaign_id, COUNT(*) AS link,
           COUNT(*) AS views
@@ -41,6 +42,7 @@ export const reportService = async () => {
           WHERE created >= '2024-10-03' AND created < '2024-10-04'
           GROUP BY campaign_id
         `),
+
           poolConnection.query(`
           SELECT 
             p.campaign_id, 
@@ -50,9 +52,9 @@ export const reportService = async () => {
               ELSE TRIM(p.location) 
             END AS location,
             COUNT(CASE 
-              WHEN p.telephone IS NOT NULL OR p.name IS NOT NULL OR p.email IS NOT NULL 
-              THEN 1 
-            END) AS leads
+              WHEN TRIM(COALESCE(p.telephone, p.name, p.email)) THEN 1
+              END) AS leads
+
           FROM ${db}.participant p
          WHERE created >= '2024-10-03' AND created < '2024-10-04'
           GROUP BY p.campaign_id, location
@@ -60,11 +62,14 @@ export const reportService = async () => {
           UNION ALL
           
           SELECT campaign_id, 'TOTAL' AS location,
-          COUNT(CASE WHEN p.telephone IS NOT NULL OR p.name IS NOT NULL OR p.email IS NOT NULL THEN 1 END) AS leads
+           COUNT(CASE 
+              WHEN TRIM(COALESCE(p.telephone, p.name, p.email)) THEN 1
+              END) AS leads
           FROM ${db}.participant p
           WHERE created >= '2024-10-03' AND created < '2024-10-04'
           GROUP BY p.campaign_id
         `),
+        
           poolConnection.query(`
                   SELECT campaign_id, 
                   CASE 
@@ -279,8 +284,6 @@ export const reportService = async () => {
         ]);
 
         console.log(`Process utförd db: ${db}`);
-        // console.log(viewRows);
-        // console.log(viewRows2);
 
         return {
           db,
@@ -298,13 +301,6 @@ export const reportService = async () => {
         };
       })
     );
-
-    //     allResults.forEach((results) => {
-    //       console.log(results);
-
-    // })
-
-    console.timeEnd("time");
 
     return allResults;
   } catch (error) {

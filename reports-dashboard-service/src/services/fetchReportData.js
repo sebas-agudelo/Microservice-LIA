@@ -1,6 +1,6 @@
 import { reportService } from "./reportService.js";
 import { dbConnection } from "../config/db.js";
-import { updateMergeData } from "./updateMergeData.js";
+import { createDataLine, updateMergeData } from "./updateMergeData.js";
 
 export const fetchReportData = async () => {
   try {
@@ -54,16 +54,6 @@ export const fetchReportData = async () => {
           campaign_id: row.campaign_id,
           link: row.link,
           views: row.views,
-          leads: 0,
-          paid_leads: 0,
-          unique_leads: 0,
-          recuring_leads: 0,
-          conversion_rate: 0,
-          giftcards_sent: 0,
-          money_received: 0,
-          avarage_payment: 0,
-          engagement_time: 0,
-          answers_percentage: 0,
         });
       });
 
@@ -76,16 +66,6 @@ export const fetchReportData = async () => {
           campaign_id: row.campaign_id,
           link: "Totala länkar " + row.link,
           views: row.views,
-          leads: 0,
-          paid_leads: 0,
-          unique_leads: 0,
-          recuring_leads: 0,
-          conversion_rate: 0,
-          giftcards_sent: 0,
-          money_received: 0,
-          avarage_payment: 0,
-          engagement_time: 0,
-          answers_percentage: 0,
         });
       });
 
@@ -124,7 +104,6 @@ export const fetchReportData = async () => {
 
     for (const db of filteredDatabases) {
 
-      // console.log(`\n--- Startar bearbetning av databas: ${db} ---`); // Steg 1: Börjar processen för databasen
       const dataPerLinkAndPerCampaign = [];
 
       const dbEntries = mergeDataPerLink.filter((entry) => entry.db === db);
@@ -132,60 +111,22 @@ export const fetchReportData = async () => {
       
 
       dbEntries.forEach((data) => {
-        dataPerLinkAndPerCampaign.push([
-          new Date(),
-          data.campaign_id,
-          data.link,
-          data.views,
-          data.leads,
-          data.paid_leads,
-          data.unique_leads,
-          data.recuring_leads,
-          data.conversion_rate,
-          data.giftcards_sent,
-          data.money_received,
-          data.avarage_payment,
-          data.engagement_time,
-          data.answers_percentage,
-        ]);
+        dataPerLinkAndPerCampaign.push(createDataLine(data))
       });
 
       dbEntries2.forEach((data) => {
-        dataPerLinkAndPerCampaign.push([
-          new Date(),
-          data.campaign_id,
-          data.link,
-          data.views,
-          data.leads,
-          data.paid_leads,
-          data.unique_leads,
-          data.recuring_leads,
-          data.conversion_rate,
-          data.giftcards_sent,
-          data.money_received,
-          data.avarage_payment,
-          data.engagement_time,
-          data.answers_percentage,
-        ]);
+        dataPerLinkAndPerCampaign.push(createDataLine(data));
       });
 
       dataPerLinkAndPerCampaign.sort((a, b) => {
         if (a[1] !== b[1]) {
           return a[1] - b[1];
-        } else {
-          if (a[2] === null && b[2] !== null) {
-            return -1;
-          } else if (a[2] !== null && b[2] === null) {
-            return -1;
-          } else {
-            return 0;
-          }
         }
+        return a[2] === null ? -1 : b[2] === null ? 1 : 0;
       });
 
       if (dataPerLinkAndPerCampaign.length > 0) {
-        // console.log(`Förbereder att lägga in data i ${db}...`); 
-
+  
         try {
           await poolConnection.query(
             `
