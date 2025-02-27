@@ -1,13 +1,15 @@
 import cron from "node-cron";
-import { reportService } from "../services/reportService.js";
-import { fetchReportData } from "../services/fetchReportData.js";
+import { fetchReportData } from "../services/dashboard_report/fetchReportData.js";
+import { collectDataForLeads } from "../services/Leads/collectDataForLeads.js";
 
 export const dailyJob = async () => {
     cron.schedule("* * * * *", async () => {
       console.log("Startar sammanslagningsjobbet (varje minut)...");
       try {
-        // await reportService();
-        await fetchReportData();
+        // await fetchReportData();
+        // await collectDataForLeads();
+        
+
   
         console.log("Sammanslagningsjobb slutfört.");
       } catch (error) {

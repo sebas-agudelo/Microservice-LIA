@@ -11,13 +11,16 @@ export const updateMergeData = (target, row) => {
     target.conversion_rate = target.views > 0 ? (target.leads / target.views) * 100 : 0;
 };
 
-export const createDataLine = (data) => {
+
+export const createDataLine = (data, filtredDate) => {
+    const filtredDat = filtredDate
+
     return [
-        new Date(),
+        filtredDat,
         data.campaign_id,
         data.link,
         data.views || 0, 
-        data.leads || 0, 
+        data.leads ? data.leads : 0, 
         data.paid_leads || 0, 
         data.unique_leads || 0, 
         data.recuring_leads || 0, 
@@ -26,6 +29,7 @@ export const createDataLine = (data) => {
         data.money_received || 0, 
         data.avarage_payment ? data.avarage_payment + "%" : 0 + "%", 
         data.engagement_time || 0, 
-        data.answers_percentage  || 0
+        data.answers_percentage ? data.answers_percentage : 0, 
+        new Date()
       ];
 }

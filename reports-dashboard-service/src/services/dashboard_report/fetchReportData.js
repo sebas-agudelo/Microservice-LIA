@@ -1,6 +1,7 @@
-import { reportService } from "./reportService.js";
-import { dbConnection } from "../config/db.js";
+import {reportService} from './reportService.js'
+import { dbConnection } from "../../config/db.js";
 import { createDataLine, updateMergeData } from "./updateMergeData.js";
+
 
 export const fetchReportData = async () => {
   try {
@@ -10,9 +11,10 @@ export const fetchReportData = async () => {
       console.error("Inga databaser att bearbeta.");
       return;
     }
-
+    
     const allResults = await reportService();
-
+    const { filtredDate } = allResults[0];  
+       
     //En tom array för att samla all data per länk
     const mergeDataPerLink = [];
 
@@ -23,10 +25,9 @@ export const fetchReportData = async () => {
     const combinedData = [];
 
     allResults.forEach((results) => {
-      console.log(results);
-    
-      const dbdb = results.db;
 
+      const dbdb = results.db;
+  
       combinedData.push(
         ...results.leadsResult,
         ...results.paidleadsResult,
@@ -40,13 +41,8 @@ export const fetchReportData = async () => {
       );
 
       results.viewRows.forEach((row) => {
-        const locationKey =
-          row.link === null
-            ? "NULL_VALUE"
-            : row.link === ""
-            ? "EMPTY_STRING"
-            : row.link;
-        const key = `${row.campaign_id}-${locationKey}`;
+        const locationKey = row.link ?? null;
+        const key = `${row.campaign_id}-${locationKey ?? ""}`;
 
         mergeDataPerLink.push({
           db: dbdb,
@@ -64,42 +60,51 @@ export const fetchReportData = async () => {
           db: dbdb,
           key: key,
           campaign_id: row.campaign_id,
-          link: "Totala länkar " + row.link,
+          link: "Total links: " + row.link,
           views: row.views,
         });
       });
 
       combinedData.forEach((row) => {
-        const locationKey =
-          row.location === null
-            ? "NULL_VALUE"
-            : row.location === ""
-            ? "EMPTY_STRING"
-            : row.location;
-
-            const campaign_key = row.campaign_id;
-
+        const locationKey = row.location ?? null;  
+        
         const existingEntry = mergeDataPerLink.find(
           (entry) =>
             entry.db === dbdb &&
-            entry.campaign_id === row.campaign_id &&
-            entry.link === locationKey
+          entry.campaign_id === row.campaign_id &&
+          entry.link === locationKey
         );
-
+        
         const existingEntry2 = mergeDataPerCampaign.find(
-          (entry) =>
-            entry.db === dbdb &&
-            entry.campaign_id === campaign_key
-        );
+                    (entry) =>
+                      entry.db === dbdb &&
+                    entry.campaign_id === row.campaign_id
+                  );
+                  
+                  
+                  if (existingEntry) {
+                    updateMergeData(existingEntry, row);
+                  } 
+                  if (existingEntry2) {
+                    updateMergeData(existingEntry2, row);
+                  }
+                  
+                  row.leads = row.leads || 0;
+                  row.paid_leads = row.paid_leads || 0;
+                  row.unique_leads = row.unique_leads || 0;
+                  row.recuring_leads = row.recuring_leads || 0;
+                  row.giftcards_sent = row.giftcards_sent || 0;
+                  row.money_received = row.money_received || 0;
+                  row.avarage_payment = row.avarage_payment || 0;
+                  row.engagement_time = row.engagement_time > 0 ? row.engagement_time : 0 || 0;
+                  row.answers_percentage = row.answers_percentage || 0;
 
-        if (existingEntry) {
-          updateMergeData(existingEntry, row);
-        }
+        
+          
+        
+    
 
-        if (existingEntry2) {
-          updateMergeData(existingEntry2, row);
-        }
-      });
+      });    
     });
 
     for (const db of filteredDatabases) {
@@ -108,15 +113,15 @@ export const fetchReportData = async () => {
 
       const dbEntries = mergeDataPerLink.filter((entry) => entry.db === db);
       const dbEntries2 = mergeDataPerCampaign.filter((entry) => entry.db === db);
-      
-
+    
       dbEntries.forEach((data) => {
-        dataPerLinkAndPerCampaign.push(createDataLine(data))
+        dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate))
       });
 
       dbEntries2.forEach((data) => {
-        dataPerLinkAndPerCampaign.push(createDataLine(data));
+        dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate));
       });
+
 
       dataPerLinkAndPerCampaign.sort((a, b) => {
         if (a[1] !== b[1]) {
@@ -125,13 +130,14 @@ export const fetchReportData = async () => {
         return a[2] === null ? -1 : b[2] === null ? 1 : 0;
       });
 
+     
       if (dataPerLinkAndPerCampaign.length > 0) {
   
         try {
           await poolConnection.query(
             `
             INSERT INTO ${db}.dashboard_report 
-            (date, campaign_id, link, views, leads, paid_leads, unique_leads, recuring_leads, conversion_rate, giftcards_sent, money_received, avarage_payment, engagement_time, answers_percentage)
+            (date, campaign_id, link, views, leads, paid_leads, unique_leads, recuring_leads, conversion_rate, giftcards_sent, money_received, avarage_payment, engagement_time, answers_percentage, created)
             VALUES ?
           `,
             [dataPerLinkAndPerCampaign]

@@ -30,9 +30,13 @@ export const dbConnection = async () => {
           name !== "information_schema" &&
           name !== "performance_schema" &&
           name !== "sas_ratataa_se" &&
-          name !== "db_clean_db"
+          name !== "db_clean_db" &&
+          name !== "db_practice4" &&
+          name !== "life_ratataa_se" 
       )
-      .slice(79, 80); 
+      // .slice(32, 33) 
+      // .slice(0, 13); 
+
 
     return { poolConnection, filteredDatabases };
   } catch (error) {
