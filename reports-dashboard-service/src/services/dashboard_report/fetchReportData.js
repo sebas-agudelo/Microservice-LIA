@@ -1,7 +1,6 @@
-import {reportService} from './reportService.js'
+import { reportService } from "./reportService.js";
 import { dbConnection } from "../../config/db.js";
 import { createDataLine, updateMergeData } from "./updateMergeData.js";
-
 
 export const fetchReportData = async () => {
   try {
@@ -11,10 +10,10 @@ export const fetchReportData = async () => {
       console.error("Inga databaser att bearbeta.");
       return;
     }
-    
+
     const allResults = await reportService();
-    const { filtredDate } = allResults[0];  
-       
+    const { filtredDate } = allResults[0];
+
     //En tom array för att samla all data per länk
     const mergeDataPerLink = [];
 
@@ -25,9 +24,8 @@ export const fetchReportData = async () => {
     const combinedData = [];
 
     allResults.forEach((results) => {
-
       const dbdb = results.db;
-  
+
       combinedData.push(
         ...results.leadsResult,
         ...results.paidleadsResult,
@@ -66,62 +64,54 @@ export const fetchReportData = async () => {
       });
 
       combinedData.forEach((row) => {
-        const locationKey = row.location ?? null;  
-        
+        const locationKey = row.location ?? null;
+
         const existingEntry = mergeDataPerLink.find(
           (entry) =>
             entry.db === dbdb &&
-          entry.campaign_id === row.campaign_id &&
-          entry.link === locationKey
+            entry.campaign_id === row.campaign_id &&
+            entry.link === locationKey
         );
-        
+
         const existingEntry2 = mergeDataPerCampaign.find(
-                    (entry) =>
-                      entry.db === dbdb &&
-                    entry.campaign_id === row.campaign_id
-                  );
-                  
-                  
-                  if (existingEntry) {
-                    updateMergeData(existingEntry, row);
-                  } 
-                  if (existingEntry2) {
-                    updateMergeData(existingEntry2, row);
-                  }
-                  
-                  row.leads = row.leads || 0;
-                  row.paid_leads = row.paid_leads || 0;
-                  row.unique_leads = row.unique_leads || 0;
-                  row.recuring_leads = row.recuring_leads || 0;
-                  row.giftcards_sent = row.giftcards_sent || 0;
-                  row.money_received = row.money_received || 0;
-                  row.avarage_payment = row.avarage_payment || 0;
-                  row.engagement_time = row.engagement_time > 0 ? row.engagement_time : 0 || 0;
-                  row.answers_percentage = row.answers_percentage || 0;
+          (entry) => entry.db === dbdb && entry.campaign_id === row.campaign_id
+        );
 
-        
-          
-        
-    
+        if (existingEntry) {
+          updateMergeData(existingEntry, row);
+        }
+        if (existingEntry2) {
+          updateMergeData(existingEntry2, row);
+        }
 
-      });    
+        row.leads = row.leads || 0;
+        row.paid_leads = row.paid_leads || 0;
+        row.unique_leads = row.unique_leads || 0;
+        row.recuring_leads = row.recuring_leads || 0;
+        row.giftcards_sent = row.giftcards_sent || 0;
+        row.money_received = row.money_received || 0;
+        row.avarage_payment = row.avarage_payment || 0;
+        row.engagement_time =
+          row.engagement_time > 0 ? row.engagement_time : 0 || 0;
+        row.answers_percentage = row.answers_percentage || 0;
+      });
     });
 
     for (const db of filteredDatabases) {
-
       const dataPerLinkAndPerCampaign = [];
 
       const dbEntries = mergeDataPerLink.filter((entry) => entry.db === db);
-      const dbEntries2 = mergeDataPerCampaign.filter((entry) => entry.db === db);
-    
+      const dbEntries2 = mergeDataPerCampaign.filter(
+        (entry) => entry.db === db
+      );
+
       dbEntries.forEach((data) => {
-        dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate))
+        dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate));
       });
 
       dbEntries2.forEach((data) => {
         dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate));
       });
-
 
       dataPerLinkAndPerCampaign.sort((a, b) => {
         if (a[1] !== b[1]) {
@@ -130,9 +120,7 @@ export const fetchReportData = async () => {
         return a[2] === null ? -1 : b[2] === null ? 1 : 0;
       });
 
-     
       if (dataPerLinkAndPerCampaign.length > 0) {
-  
         try {
           await poolConnection.query(
             `
