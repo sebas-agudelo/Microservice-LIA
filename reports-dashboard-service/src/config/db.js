@@ -32,10 +32,13 @@ export const dbConnection = async () => {
           name !== "sas_ratataa_se" &&
           name !== "db_clean_db" &&
           name !== "db_practice4" &&
-          name !== "life_ratataa_se" 
+          name !== "life_ratataa_se" && 
+          name !== "db_weeffect"
       )
-      // .slice(32, 33) 
-      // .slice(0, 13); 
+      // .slice(79, 80) 
+      // .slice(32, 33); 
+      // .slice(8, 9); 
+
 
 
     return { poolConnection, filteredDatabases };
