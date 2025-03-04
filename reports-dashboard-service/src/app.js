@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { dbConnection } from "./config/db.js";
 import { dailyJob } from "./jobs/dailyReports.js";
 import mergeData from "./services/Leads/insertLeadsData.js";
+import { fetchReportData } from "./services/dashboard_report/fetchReportData.js";
 
 const app = express();
 app.use(express.json());

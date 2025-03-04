@@ -3,6 +3,7 @@ export const updateMergeData = (target, row) => {
   target.paid_leads = (row.paid_leads !== undefined && row.paid_leads !== null && !isNaN(row.paid_leads)) ? row.paid_leads : target.paid_leads;
   target.unique_leads = (row.unique_leads !== undefined && row.unique_leads !== null && !isNaN(row.unique_leads)) ? row.unique_leads : target.unique_leads;
   target.recuring_leads = (row.recuring_leads !== undefined && row.recuring_leads !== null && !isNaN(row.recuring_leads)) ? row.recuring_leads : target.recuring_leads;
+  target.sms_parts = (row.sms_parts !== undefined && row.sms_parts !== null && !isNaN(row.sms_parts)) ? row.sms_parts : target.sms_parts;
   target.giftcards_sent = (row.giftcards_sent !== undefined && row.giftcards_sent !== null && !isNaN(row.giftcards_sent)) ? row.giftcards_sent : target.giftcards_sent;
   target.money_received = (row.money_received !== undefined && row.money_received !== null && !isNaN(row.money_received)) ? row.money_received : target.money_received;
   target.avarage_payment = (row.avarage_payment !== undefined && row.avarage_payment !== null && !isNaN(row.avarage_payment)) ? row.avarage_payment : target.avarage_payment;
@@ -23,6 +24,7 @@ export const createDataLine = (data, filtredDate) => {
       data.paid_leads || 0, 
       data.unique_leads || 0, 
       data.recuring_leads || 0, 
+      data.sms_parts || 0,
       // data.conversion_rate ? data.conversion_rate + "%" : 0 + "%", 
       data.giftcards_sent || 0, 
       data.money_received || 0, 

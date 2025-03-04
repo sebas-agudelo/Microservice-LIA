@@ -51,6 +51,7 @@ export const reportService = async () => {
           paidleadsResult,
           uniqueLeadsResult,
           recuringLeadsResult,
+          smsPartsResult,
           giftcardsSendResult,
           moneyReceivedResult,
           avaragePaymentResult,
@@ -187,6 +188,37 @@ export const reportService = async () => {
           GROUP BY p.campaign_id
           `,[filtredDate, filtredDate]),
 
+          //sms_parts fetch data from the participant and check if the view_key matches the one in the view table.
+          poolConnection.query(`
+          SELECT  p.campaign_id, v.view_r AS link,
+          SUM(COALESCE(
+              CASE 
+              WHEN JSON_VALID(p.report_download_email) 
+              THEN JSON_UNQUOTE(JSON_EXTRACT(p.report_download_email, '$.parts')) 
+              ELSE 0 
+              END, 0) + COALESCE(p.sms_parts, 0)) AS sms_parts, 
+          MIN(p.created) AS created_date
+
+          FROM ${db}.participant p
+          JOIN ${db}.view v ON p.view_key = v.view_key
+          WHERE p.created >= ?
+          GROUP BY p.campaign_id, link
+          UNION
+                          
+          SELECT p.campaign_id, NULL AS link, 
+  
+          SUM(COALESCE(
+          CASE 
+              WHEN JSON_VALID(p.report_download_email) 
+              THEN JSON_UNQUOTE(JSON_EXTRACT(p.report_download_email, '$.parts')) 
+              ELSE 0 
+          END, 0) + COALESCE(p.sms_parts, 0)) AS sms_parts, MIN(p.created) AS sms_parts
+  
+          FROM ${db}.participant p
+          WHERE p.created >= ?
+          GROUP BY p.campaign_id
+          `,[filtredDate, filtredDate]),
+
           //Giftcards_sent fetch data from the participant and check if the view_key matches the one in the view table.
           poolConnection.query(`
           SELECT p.campaign_id, v.view_r AS link,
@@ -318,6 +350,7 @@ export const reportService = async () => {
           paidleadsResult: paidleadsResult[0],
           uniqueLeadsResult: uniqueLeadsResult[0],
           recuringLeadsResult: recuringLeadsResult[0],
+          smsPartsResult: smsPartsResult[0],
           giftcardsSendResult: giftcardsSendResult[0],
           moneyReceivedResult: moneyReceivedResult[0],
           avaragePaymentResult: avaragePaymentResult[0],

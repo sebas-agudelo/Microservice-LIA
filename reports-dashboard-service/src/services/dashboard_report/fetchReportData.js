@@ -56,6 +56,7 @@ export const fetchReportData = async () => {
         ...results.paidleadsResult,
         ...results.uniqueLeadsResult,
         ...results.recuringLeadsResult,
+        ...results.smsPartsResult,
         ...results.giftcardsSendResult,
         ...results.moneyReceivedResult,
         ...results.avaragePaymentResult,
@@ -124,7 +125,7 @@ export const fetchReportData = async () => {
           await poolConnection.query(
             `
             INSERT INTO ${db}.dashboard_report 
-            (date, campaign_id, link, views, leads, paid_leads, unique_leads, recuring_leads, giftcards_sent, money_received, avarage_payment, engagement_time, answers_percentage, created)
+            (date, campaign_id, link, views, leads, paid_leads, unique_leads, recuring_leads, sms_parts, giftcards_sent, money_received, avarage_payment, engagement_time, answers_percentage, created)
             VALUES ?
           `,
             [dataPerLinkAndPerCampaign]
