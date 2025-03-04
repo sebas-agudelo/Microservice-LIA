@@ -40,6 +40,17 @@ export default async function mergeData() {
         if(phone.startsWith("358")){
           return "358" + phone.slice(3);
         } 
+
+        //Danmark
+        if(
+          phone.startsWith("30") ||
+          phone.startsWith("40") ||
+          phone.startsWith("50") && !phone.startsWith("45")
+        ){return "45" + phone}
+
+        if (phone.startsWith("45")){
+          return "45" + phone.slice(2);
+        }
     
         return phone;
       };

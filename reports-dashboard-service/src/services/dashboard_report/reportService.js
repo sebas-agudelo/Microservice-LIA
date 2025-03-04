@@ -271,9 +271,9 @@ export const reportService = async () => {
           poolConnection.query(`
           SELECT p.campaign_id, v.view_r AS link,
               
-          SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) AS money_received,
+          ROUND(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END), 2) AS money_received,
           COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads,
-          COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) / NULLIF(COUNT(CASE WHEN status = 'PAID' THEN 1 END), 0), 0) AS avarage_payment
+          ROUND(COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) / NULLIF(COUNT(CASE WHEN status = 'PAID' THEN 1 END), 0), 0), 2) AS avarage_payment
 
           FROM ${db}.participant p
           JOIN ${db}.view v ON p.view_key = v.view_key
@@ -283,9 +283,9 @@ export const reportService = async () => {
           UNION 
           SELECT p.campaign_id, NULL AS link, 
 
-          SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) AS money_received,
+          ROUND(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END), 2) AS money_received,
           COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads,
-          COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) / NULLIF(COUNT(CASE WHEN status = 'PAID' THEN 1 END), 0), 0) AS avarage_payment
+          ROUND(COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) / NULLIF(COUNT(CASE WHEN status = 'PAID' THEN 1 END), 0), 0), 2) AS avarage_payment
      
           FROM ${db}.participant p
           WHERE p.created >= ?
