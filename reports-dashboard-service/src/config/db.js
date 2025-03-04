@@ -33,8 +33,15 @@ export const dbConnection = async () => {
           name !== "db_clean_db" &&
           name !== "db_practice4" &&
           name !== "life_ratataa_se" && 
-          name !== "db_weeffect"
+          name !== "db_demo84" &&
+          name !== "db_p10" &&
+          name !== "db_p11" &&
+          name !== "db_p5" &&
+          name !== "db_t"
+
       )
+      // .slice(150, 201) 
+
       // .slice(79, 80) 
       // .slice(32, 33); 
       // .slice(8, 9); 

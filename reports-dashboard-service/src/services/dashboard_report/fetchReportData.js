@@ -1,58 +1,56 @@
 import { reportService } from "./reportService.js";
 import { dbConnection } from "../../config/db.js";
 import { createDataLine } from "./updateMergeData.js";
+import { updateMergeData } from "./updateMergeData.js";
 
 export const fetchReportData = async () => {
   try {
+    //Fetches the database connection and all databases, including those that are filtered out.
     const { poolConnection, filteredDatabases } = await dbConnection();
 
-    if (!filteredDatabases || filteredDatabases.length === 0) {
-      console.error("Inga databaser att bearbeta.");
-      return;
-    }
-
+    // Fetches all data from reportService from all SQL queries, e.g. leads, paid_leads, unique_leads, etc.
     const allResults = await reportService();
+
+    //This is the date to display the date of the fetched data in the date column.
     const { filtredDate } = allResults[0];
 
+    //An array to collect all data for all links with the same campaign_id.
     const mergeDataByLink = [];
 
+    //An array to collect all data for same campaign_id.
     const mergeDataPerCampaign = [];
 
-
+    // Here I loop through all the data from my queries in reportService.
     allResults.forEach((results) => {
       const dbdb = results.db;
 
-      // console.log("Alla  views", results.viewResult);
-      
-      // console.log("Alla leads", results.leadsResult);
-
-      // Bearbeta view-rader för individuella länkar
-      results.viewRows.forEach((row) => {
-        const link = row.link || null; // Hantera fall där link är null
+      //Here, I loop through the data that shows from the view table displaying all the links and views with the same campaign_id.
+      results.viewLinkResult.forEach((row) => {
+        const link = row.link || null;
         const key = `${row.campaign_id}-${link}`;
-        const campaignData = row.campaign_id;
 
         mergeDataByLink.push({
           db: dbdb,
           key: key,
           campaign_id: row.campaign_id,
           link: link,
-          views: row.views
-        })
+          views: row.views,
+        });
       });
 
-      results.viewResult.forEach((row) => {
+      //Here, I loop through the view table that shows the number of links and views for an entire campaign with the same campaign_id.
+      results.viewCampaignResult.forEach((row) => {
         const key = row.campaign_id;
-
         mergeDataPerCampaign.push({
           db: dbdb,
           key: key,
           campaign_id: row.campaign_id,
           link: "Total links: " + row.link,
-          views: row.views
-        })
+          views: row.views,
+        });
       });
-    
+
+      // Here I put all the data from leads, paid_leads, unique_leads, recurring_leads, giftcards_sent, money_received, sms_parts, average_payment, engagement_time, answers_percentage into an array.
       const combinedData = [
         ...results.leadsResult,
         ...results.paidleadsResult,
@@ -62,151 +60,66 @@ export const fetchReportData = async () => {
         ...results.moneyReceivedResult,
         ...results.avaragePaymentResult,
         ...results.engagementTimeResult,
-        ...results.answersPercentageResult
+        ...results.answersPercentageResult,
       ];
-    
+
+       //Here I loop through the combined data array,
       combinedData.forEach((row) => {
         const campaign_id = row.campaign_id;
-        const link = row.link || null; // Hantera fall där link är null
-        // const leads = row.leads ?? 0;
-        const leads = (row.leads !== undefined && row.leads !== null && !isNaN(row.leads)) ? row.leads : 0;
-        const paid_leads = (row.paid_leads !== undefined && row.paid_leads !== null && !isNaN(row.paid_leads)) ? row.paid_leads : 0;
-        const unique_leads = (row.unique_leads !== undefined && row.unique_leads !== null && !isNaN(row.unique_leads)) ? row.unique_leads : 0;
-        const recuring_leads = (row.recuring_leads !== undefined && row.recuring_leads !== null && !isNaN(row.recuring_leads)) ? row.recuring_leads : 0;
-        const giftcards_sent = (row.giftcards_sent !== undefined && row.giftcards_sent !== null && !isNaN(row.giftcards_sent)) ? row.giftcards_sent : 0;
-        const money_received = (row.money_received !== undefined && row.money_received !== null && !isNaN(row.money_received)) ? row.money_received : 0;
-        const avarage_payment = (row.avarage_payment !== undefined && row.avarage_payment !== null && !isNaN(row.avarage_payment)) ? row.avarage_payment : 0;
-        const engagement_time = (row.engagement_time !== undefined && row.engagement_time !== null && !isNaN(row.engagement_time)) ? row.engagement_time : 0;
-        const answers_percentage = (row.answers_percentage !== undefined && row.answers_percentage !== null && !isNaN(row.answers_percentage)) ? row.answers_percentage : 0;
-        // Hitta rätt entry baserat på campaign_id och link (view_r)
+        const link = row.link || null;
+
+      //If I check if location matches view_r, if it does, we add leads, paid_leads, etc....
         const existingEntry = mergeDataByLink.find(
           (entry) =>
             entry.db === dbdb &&
             entry.campaign_id === campaign_id &&
             entry.link === link
         );
-    
+
+      //If I check if campaign_id matches campaign_id in both participant and view, if it does, we add leads, paid_leads, etc....
         const existingEntryCampaign = mergeDataPerCampaign.find(
-          (entry) =>
-            entry.db === dbdb &&
-            entry.campaign_id === campaign_id
+          (entry) => entry.db === dbdb && entry.campaign_id === campaign_id
         );
 
         if (existingEntry) {
-          // Uppdatera leads och answers_percentage för rätt view_r
+          updateMergeData(existingEntry, row);
+        }
 
-          if(leads !== 0 && (existingEntry.leads === undefined || existingEntry.leads === 0)){
-            existingEntry.leads = leads; // Summera leads
-
-          }
-          if(paid_leads !== 0 && (existingEntry.paid_leads === undefined || existingEntry.paid_leads === 0)){
-            
-            existingEntry.paid_leads = paid_leads;
-          }
-          if(unique_leads !== 0 && (existingEntry.unique_leads === undefined || existingEntry.unique_leads === 0)){
-            
-            existingEntry.unique_leads = unique_leads;
-          }
-          if(recuring_leads !== 0 && (existingEntry.recuring_leads === undefined || existingEntry.recuring_leads === 0)){
-
-            existingEntry.recuring_leads = recuring_leads;
-          }
-          if(giftcards_sent !== 0 && (existingEntry.giftcards_sent === undefined || existingEntry.giftcards_sent === 0)){
-
-            existingEntry.giftcards_sent = giftcards_sent;
-          }
-          if(money_received !== 0 && (existingEntry.money_received === undefined || existingEntry.money_received === 0)){
-
-            existingEntry.money_received = money_received;
-          }
-          if(avarage_payment !== 0 && (existingEntry.avarage_payment === undefined || existingEntry.avarage_payment === 0)){
-
-            existingEntry.avarage_payment = avarage_payment;
-          }
-          if(engagement_time !== 0 && (existingEntry.engagement_time === undefined || existingEntry.engagement_time === 0)){
-
-            existingEntry.engagement_time = engagement_time;
-          }
-          if(answers_percentage !== 0 && (existingEntry.answers_percentage === undefined || existingEntry.answers_percentage === 0)){
-
-            existingEntry.answers_percentage = answers_percentage;
-          }
-        } 
-
-
-        else if (existingEntryCampaign) {
-         
-          if(leads !== 0 && (existingEntryCampaign.leads === undefined || existingEntryCampaign.leads === 0)){
-            existingEntryCampaign.leads = leads; // Summera leads
-
-          }
-          if(paid_leads !== 0 && (existingEntryCampaign.paid_leads === undefined || existingEntryCampaign.paid_leads === 0)){
-            
-            existingEntryCampaign.paid_leads = paid_leads;
-          }
-          if(unique_leads !== 0 && (existingEntryCampaign.unique_leads === undefined || existingEntryCampaign.unique_leads === 0)){
-            
-            existingEntryCampaign.unique_leads = unique_leads;
-          }
-          if(recuring_leads !== 0 && (existingEntryCampaign.recuring_leads === undefined || existingEntryCampaign.recuring_leads === 0)){
-  
-            existingEntryCampaign.recuring_leads = recuring_leads;
-          }
-          if(giftcards_sent !== 0 && (existingEntryCampaign.giftcards_sent === undefined || existingEntryCampaign.giftcards_sent === 0)){
-
-            existingEntryCampaign.giftcards_sent = giftcards_sent;
-          }
-          if(money_received !== 0 && (existingEntryCampaign.money_received === undefined || existingEntryCampaign.money_received === 0)){
-
-            existingEntryCampaign.money_received = money_received;
-          }
-          if(avarage_payment !== 0 && (existingEntryCampaign.avarage_payment === undefined || existingEntryCampaign.avarage_payment === 0)){
-
-            existingEntryCampaign.avarage_payment = avarage_payment;
-          }
-          if(engagement_time !== 0 && (existingEntryCampaign.engagement_time === undefined || existingEntryCampaign.engagement_time === 0)){
-
-            existingEntryCampaign.engagement_time = engagement_time;
-          }
-          if(answers_percentage !== 0 && (existingEntryCampaign.answers_percentage === undefined || existingEntryCampaign.answers_percentage === 0)){
-  
-            existingEntryCampaign.answers_percentage = answers_percentage;
-          }
-        } 
+        if (existingEntryCampaign) {
+          updateMergeData(existingEntryCampaign, row);
+        }
       });
     });
 
-    // console.log(mergeDataByLink);
-    
-    
-    // Infoga data i databasen
+    //Här loppar jag igenom databaserna gör att lägga till rätt data i rätt databas
     for (const db of filteredDatabases) {
       const dataPerLinkAndPerCampaign = [];
-    
-      const dbEntries = mergeDataByLink.filter((entry) => entry.db === db);
-      const dbEntries2 = mergeDataPerCampaign.filter((entry) => entry.db === db);
 
-    
-      dbEntries.forEach((data) => {
+    //Here, I am checking that the data from mergeDataByLink and mergeDataPerCampaign matches the correct database to avoid incorrect data in the wrong database.
+      const linkDataDb = mergeDataByLink.filter((entry) => entry.db === db);
+      const campaignDataDb = mergeDataPerCampaign.filter((entry) => entry.db === db);
+
+    /* Here, I loop through linkDataDb and campaignDataDb to transform the data  
+     using createDataLine and store it in dataPerLinkAndPerCampaign,  
+    preparing it for batch insertion. */
+      linkDataDb.forEach((data) => {
+        dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate));
+      });
+      campaignDataDb.forEach((data) => {
         dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate));
       });
 
-      dbEntries2.forEach((data) => {
-        dataPerLinkAndPerCampaign.push(createDataLine(data, filtredDate));
-      });
-
-      // console.log("Campaign data", mergeDataPerCampaign);
-      
-
-    
+      // If dataPerLinkAndPerCampaign is greater than 0, we add the data
       if (dataPerLinkAndPerCampaign.length > 0) {
+
+      // Here we sort so that the total for the entire campaign ends up just below the last link.
         dataPerLinkAndPerCampaign.sort((a, b) => {
           if (a[1] !== b[1]) {
             return a[1] - b[1];
           }
           return a[2] === null ? -1 : b[2] === null ? 1 : 0;
         });
-        
+
         try {
           await poolConnection.query(
             `
@@ -216,7 +129,7 @@ export const fetchReportData = async () => {
           `,
             [dataPerLinkAndPerCampaign]
           );
-    
+
           console.log(`Data inserted into ${db}`);
         } catch (insertError) {
           console.error(`Error during INSERT in ${db}:`, insertError);
@@ -225,7 +138,6 @@ export const fetchReportData = async () => {
         console.log(`No data to insert into ${db}`);
       }
     }
-    
   } catch (error) {
     console.error("Error vid hämtning av rapportdata:", error);
   }

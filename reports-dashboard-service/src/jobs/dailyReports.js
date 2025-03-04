@@ -1,21 +1,21 @@
 import cron from "node-cron";
 import { fetchReportData } from "../services/dashboard_report/fetchReportData.js";
-import { collectDataForLeads } from "../services/Leads/collectDataForLeads.js";
+import mergeData from "../services/Leads/insertLeadsData.js";
 
 export const dailyJob = async () => {
-    cron.schedule("* * * * *", async () => {
-      console.log("Startar sammanslagningsjobbet (varje minut)...");
+    cron.schedule("0 0 * * *", async () => { 
+    
       try {
+        // console.log("Börjar med dashboard_report");
         // await fetchReportData();
-        // await collectDataForLeads();
-        
+        // console.log("Klar med dashboard_report");
 
-  
-        console.log("Sammanslagningsjobb slutfört.");
+        // console.log("Börjar med leads");
+        // await mergeData();
+        // console.log("Klar med leads");
+     
       } catch (error) {
         console.error("Fel under sammanslagningsjobbet:", error.message);
       }
     });
-  
-    console.log("Cron-jobbet är startat och körs varje minut.");
-  };
+};
