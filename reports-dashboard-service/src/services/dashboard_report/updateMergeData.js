@@ -13,7 +13,9 @@ export const updateMergeData = (target, row) => {
 };
 
 export const createDataLine = (data, filtredDate) => {
-  const filtredDat = filtredDate
+  const filtredDat = filtredDate;
+
+  const SwedishTimeZone = new Date().toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" });
 
   return [
       filtredDat,
@@ -31,6 +33,6 @@ export const createDataLine = (data, filtredDate) => {
       data.avarage_payment ? data.avarage_payment + "%" : 0 + "%", 
       data.engagement_time || 0, 
       data.answers_percentage || 0, 
-      new Date()
+      SwedishTimeZone
     ];
 }
