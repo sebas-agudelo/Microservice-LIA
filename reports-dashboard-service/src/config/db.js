@@ -40,14 +40,7 @@ export const dbConnection = async () => {
           name !== "db_t"
 
       )
-      // .slice(150, 201) 
-
-      // .slice(79, 80) 
-      // .slice(32, 33); 
-      // .slice(8, 9); 
-
-
-
+  
     return { poolConnection, filteredDatabases };
   } catch (error) {
     console.error("Fel vid anslutning till databasen:", error);
