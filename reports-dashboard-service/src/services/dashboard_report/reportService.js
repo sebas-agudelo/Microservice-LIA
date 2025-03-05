@@ -33,10 +33,10 @@ export const reportService = async () => {
 
         console.log(`Procces börjad db: ${db}`);
         const [filtredDateResult] = await poolConnection.query(`
-          SELECT DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS filtredDate
+          SELECT DATE_SUB(CURDATE(), INTERVAL 21 DAY) AS filtredDate
           FROM ${db}.view
           UNION 
-          SELECT DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS filtredDate
+          SELECT DATE_SUB(CURDATE(), INTERVAL 21 DAY) AS filtredDate
           FROM ${db}.participant
         `);
         const filtredDate =
@@ -61,7 +61,7 @@ export const reportService = async () => {
 
           //The query to retrieve data based on campaign_id and view_r (just for the links)
           poolConnection.query(`
-          SELECT campaign_id, view_key,  
+          SELECT campaign_id,  
           CASE 
                WHEN view_r = '' THEN ''        
                WHEN view_r IS NOT NULL THEN TRIM(view_r)  
@@ -188,7 +188,7 @@ export const reportService = async () => {
           GROUP BY p.campaign_id
           `,[filtredDate, filtredDate]),
 
-          //sms_parts fetch data from the participant and check if the view_key matches the one in the view table.
+          // sms_parts fetch data from the participant and check if the view_key matches the one in the view table.
           poolConnection.query(`
           SELECT  p.campaign_id, v.view_r AS link,
           SUM(COALESCE(
