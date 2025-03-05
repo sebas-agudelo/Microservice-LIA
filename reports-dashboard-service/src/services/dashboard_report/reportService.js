@@ -33,10 +33,10 @@ export const reportService = async () => {
 
         console.log(`Procces börjad db: ${db}`);
         const [filtredDateResult] = await poolConnection.query(`
-          SELECT DATE_SUB(CURDATE(), INTERVAL 21 DAY) AS filtredDate
+          SELECT DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS filtredDate
           FROM ${db}.view
           UNION 
-          SELECT DATE_SUB(CURDATE(), INTERVAL 21 DAY) AS filtredDate
+          SELECT DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS filtredDate
           FROM ${db}.participant
         `);
         const filtredDate =

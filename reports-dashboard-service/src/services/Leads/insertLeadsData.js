@@ -5,7 +5,7 @@ export default async function mergeData() {
     const { poolConnection, filteredDatabases } = await dbConnection();
     for (const db of filteredDatabases) {
       const [participants] = await poolConnection.query(
-        `SELECT id, telephone, location, amount, name, email, coupon_send, address, postalcode, city, personal_number, points_scored, time_spent, sms_parts, sms_cost, agree_download_report, custom_text4, receiver_phone, recurring_history, game_type, Custom_timestamp_3, receiver_phone, created FROM ${db}.participant WHERE created >= DATE_SUB(CURDATE(), INTERVAL 21 DAY)`
+        `SELECT id, telephone, location, amount, name, email, coupon_send, address, postalcode, city, personal_number, points_scored, time_spent, sms_parts, sms_cost, agree_download_report, custom_text4, receiver_phone, recurring_history, game_type, Custom_timestamp_3, receiver_phone, created FROM ${db}.participant WHERE created >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)`
       );
 
       const mergedData = {};
