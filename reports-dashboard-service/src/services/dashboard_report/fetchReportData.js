@@ -163,12 +163,12 @@
                 batch = [];
               }
               if (currentIndex < dataPerLinkAndPerCampaign.length) {
-                console.log("Esperando 1.5 segundos antes del siguiente lote...");
+                console.log("Väntar på nästa batch");
 
                 await delay(10000);
                 await processBatch();
               } else {
-                console.log("Todos los datos han sido procesados.");
+                console.log("All data har bearbetats");
               }
             };
             await processBatch();
