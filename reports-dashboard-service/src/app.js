@@ -12,9 +12,9 @@ app.use(express.json());
 dotenv.config();
 
 app.get("/databases", async (req, res) => {
- 
+  const { poolConnection } = await dbConnection();
   await fetchReportData();
-  await mergeData();
+  // await mergeData();
 
   await poolConnection.end();
 
@@ -37,7 +37,7 @@ app.delete('/delete', async (req, res) => {
 
       console.log(`Data borttagen från ${db}.leads`);
 
-      await poolConnection.end();
+      // await poolConnection.end();
     }
 
     console.log("Rensning klar för alla databaser.");

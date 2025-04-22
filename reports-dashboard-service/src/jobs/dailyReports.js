@@ -4,7 +4,7 @@ import mergeData from "../services/Leads/insertLeadsData.js";
 import { dbConnection } from "../config/db.js";
 
 export const dailyJob = async () => {
-    cron.schedule("0 0 * * *", async () => { 
+    cron.schedule("0 1 * * *", async () => { 
     
       try {
         const { poolConnection } = await dbConnection();

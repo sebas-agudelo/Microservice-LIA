@@ -14,7 +14,7 @@ services:
 
   nodejs:
     build: .                           # Bygger Node.js-applikationen från Dockerfile i aktuell mapp
-    container_name: nodejs
+    container_name: rapportochleadsnodejs
     ports:
       - "3000:3000"
     depends_on:
