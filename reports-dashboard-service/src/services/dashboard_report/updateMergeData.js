@@ -9,8 +9,8 @@ export const updateMergeData = (target, row) => {
   // target.avarage_payment = (row.avarage_payment !== undefined && row.avarage_payment !== null && !isNaN(row.avarage_payment)) ? row.avarage_payment : target.avarage_payment;
   target.engagement_time = (row.engagement_time !== undefined && row.engagement_time !== null && !isNaN(row.engagement_time)) ? row.engagement_time : target.engagement_time;
   target.answers_percentage = (row.answers_percentage !== undefined && row.answers_percentage !== null && !isNaN(row.answers_percentage)) ? row.answers_percentage : target.answers_percentage;
-  target.campaign_name = (row.campaign_name !== undefined && row.campaign_name !== null) ? row.campaign_name : target.campaign_name;
   target.flow_mode_id = (row.flow_mode_id !== undefined && row.flow_mode_id !== null && !isNaN(row.flow_mode_id)) ? row.flow_mode_id : target.flow_mode_id;
+  target.campaign_name = (row.campaign_name !== undefined && row.campaign_name !== null) ? row.campaign_name : target.campaign_name;
   // target.conversion_rate = target.views > 0 ? (target.leads / target.views) * 100 : 0;
 };
 
@@ -36,7 +36,7 @@ export const createDataLine = (data, startDate, endDate) => {
       data.engagement_time || 0, 
       data.answers_percentage || 0, 
       SwedishTimeZone,
-      data.campaign_name || null, 
       data.flow_mode_id || null, 
+      data.campaign_name || null, 
     ];
 }

@@ -64,8 +64,8 @@
             // ...results.avaragePaymentResult,
             ...results.engagementTimeResult,
             ...results.answersPercentageResult,
-            // ...results.campaignNameResult,
-            // ...results.flowModeIdResult,
+            ...results.flowModeIdResult,
+            ...results.campaignNameResult,
           ];
 
           //Here I loop through the combined data array,
@@ -149,7 +149,7 @@
                   await poolConnection.query(
                     `
                     INSERT INTO ${db}.dashboard_report
-                    (date, campaign_id, link, views, leads, paid_leads, unique_leads, recuring_leads, sms_parts, giftcards_sent, money_received, engagement_time, answers_percentage, created)
+                    (date, campaign_id, link, views, leads, paid_leads, unique_leads, recuring_leads, sms_parts, giftcards_sent, money_received, engagement_time, answers_percentage, created, emails_delivered, quiz_finished)
                     VALUES ?
                   `,
                     [batch]

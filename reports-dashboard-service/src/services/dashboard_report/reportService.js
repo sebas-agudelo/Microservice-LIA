@@ -30,12 +30,10 @@ export const reportService = async () => {
         console.log(`Startar process för databas: ${db}`);
 
         const [filtredDateResult] = await poolConnection.query(`
-          SELECT CURDATE() - INTERVAL 1 DAY AS startDate,
-          CURDATE() AS endDate
+          SELECT '2025-04-14' AS startDate, '2025-04-16' AS endDate
           FROM ${db}.view
           UNION 
-          SELECT CURDATE() - INTERVAL 1 DAY AS startDate,
-          CURDATE() AS endDate
+          SELECT '2025-04-14' AS startDate, '2025-04-16' AS endDate
           FROM ${db}.participant
         `);
 
@@ -54,19 +52,34 @@ export const reportService = async () => {
         //The query to retrieve data based on campaign_id and view_r (just for the links)
         const [viewLinkResult] = await poolConnection.query(
           `
-          SELECT campaign_id,  
-          CASE 
-               WHEN view_r = '' THEN ''        
-               WHEN view_r IS NOT NULL THEN TRIM(view_r)  
-               ELSE NULL                        
-          END AS link, 
+SELECT 
+    v.campaign_id,
+    CASE 
+        WHEN v.view_r = 'null' AND v.banner_id IS NULL THEN 'null'
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL AND b.title IS NOT NULL THEN b.title  
+        WHEN v.view_r IS NOT NULL AND v.view_r <> '' AND v.view_r <> 'null' THEN TRIM(v.view_r)  
+        WHEN v.view_r IS NULL OR v.view_r = '' OR v.view_r = 'null' THEN 
+            CASE 
+                WHEN b.title IS NOT NULL THEN b.title 
+                ELSE NULL 
+            END
+        ELSE NULL
+    END AS link,
+    COUNT(*) AS views
+FROM 
+    db_practice.view v
+LEFT JOIN 
+    db_practice.banner b ON b.id = v.banner_id
+WHERE 
+    (v.view_r IS NOT NULL OR v.banner_id IS NOT NULL)
+  AND DATE(v.created) BETWEEN ? AND ?
+GROUP BY 
+    v.campaign_id,
+    link
 
-          COUNT(*) AS views
-    
-          FROM ${db}.view
-        WHERE DATE(created) BETWEEN ? AND ?
 
-          GROUP BY campaign_id, view_r;
+
+       
           `,
           [startDate, endDate]
         );        
@@ -86,142 +99,207 @@ export const reportService = async () => {
           [startDate, endDate]
         );
 
-        // Leads fetch data from the participant and check if the view_key matches the one in the view table.
-        const [leadsResult] = await poolConnection.query(
+      // Leads fetch data from the participant and check if the view_key matches the one in the view table.
+      const [leadsResult] = await poolConnection.query(
           `
-            SELECT p.campaign_id, v.view_r AS link,
-            COUNT(*) AS leads
-            FROM ${db}.participant p
+      SELECT 
+      p.campaign_id,
+      CASE
+      WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title  
+      ELSE v.view_r 
+      END AS link,
+      COUNT(*) AS leads
+      FROM 
+      ${db}.participant p
+      JOIN 
+      ${db}.view v ON p.view_key = v.view_key
+      LEFT JOIN 
+      ${db}.banner b  ON v.banner_id = b.id
+      WHERE DATE(p.created) BETWEEN ? AND ?
+      AND p.view_key IS NOT NULL AND p.view_key <> ''
+      AND (
+      TRIM(NULLIF(p.telephone, '')) <> '' 
+      OR TRIM(NULLIF(p.name, '')) <> '' 
+      OR TRIM(NULLIF(p.email, '')) <> ''
+      )
+      AND NOT (
+      (v.view_r IS NULL OR TRIM(v.view_r) = '')  -- fall 3: båda är null/tomma
+      AND v.banner_id IS NULL
+      )
+      GROUP BY 
+      p.campaign_id, 
+      link
 
-            JOIN ${db}.view v ON p.view_key = v.view_key
 
-            WHERE DATE(p.created) BETWEEN ? AND ?
-            AND p.view_key IS NOT NULL AND p.view_key <> ''
-            AND (TRIM(NULLIF(p.telephone, '')) <> '' 
-            OR TRIM(NULLIF(p.name, '')) <> '' 
-            OR TRIM(NULLIF(p.email, '')) <> '')
-            GROUP BY p.campaign_id, link
+      UNION
           
-            UNION
-          
-            SELECT p.campaign_id, NULL AS link, 
-            COUNT(CASE 
-            WHEN TRIM(COALESCE(p.telephone, p.name, p.email)) <> '' THEN 1
-            END) AS leads
-            FROM ${db}.participant p
-            WHERE DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-          `,
-          [startDate, endDate, startDate, endDate]
-        );
+      SELECT p.campaign_id, NULL AS link, 
+      COUNT(CASE 
+      WHEN TRIM(COALESCE(p.telephone, p.name, p.email)) <> '' THEN 1
+      END) AS leads
+      FROM ${db}.participant p
+      WHERE DATE(p.created) BETWEEN ? AND ?
+      GROUP BY p.campaign_id
+      `,
+      [startDate, endDate, startDate, endDate]
+      );
 
-        // //paid_leads fetch data from the participant and check if the view_key matches the one in the view table.
-        const [paidleadsResult] = await poolConnection.query(
-          `
-            SELECT p.campaign_id, v.view_r AS link,
+      // //paid_leads fetch data from the participant and check if the view_key matches the one in the view table.
+      const [paidleadsResult] = await poolConnection.query(
+      `
+      SELECT 
+      p.campaign_id,
+      CASE
+      WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+      ELSE v.view_r
+      END AS link,
+      COUNT(CASE WHEN p.status = 'PAID' THEN 1 END) AS paid_leads
+      FROM 
+      ${db}.participant p
+      JOIN 
+      ${db}.view v ON p.view_key = v.view_key
+      LEFT JOIN 
+      ${db}.banner b ON v.banner_id = b.id
+      WHERE DATE(p.created) BETWEEN ? AND ?
+      AND p.view_key IS NOT NULL AND p.view_key <> ''
+      AND NOT (
+      (v.view_r IS NULL OR TRIM(v.view_r) = '')
+      AND v.banner_id IS NULL
+      )
+      GROUP BY 
+      p.campaign_id,
+      link
   
-            COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads
-            
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE DATE(p.created) BETWEEN ? AND ?
-            AND p.view_key IS NOT NULL AND p.view_key <> ''
-            GROUP BY p.campaign_id, link
+      UNION
   
-            UNION
+      SELECT p.campaign_id, NULL AS link, 
   
-            SELECT p.campaign_id, NULL AS link, 
+      COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads
   
-            COUNT(CASE WHEN status = 'PAID' THEN 1 END) AS paid_leads
-  
-            FROM ${db}.participant p
-            WHERE DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-            `,
-          [startDate, endDate, startDate, endDate]
-        );
+      FROM ${db}.participant p
+      WHERE DATE(p.created) BETWEEN ? AND ?
+      GROUP BY p.campaign_id
+      `,
+      [startDate, endDate, startDate, endDate]
+      );
 
-        // //unique_leads fetch data from the participant and check if the view_key matches the one in the view table.
-        const [uniqueLeadsResult] = await poolConnection.query(
-          `
-            SELECT p.campaign_id, v.view_r AS link,
-  
-            COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads
-  
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE p.telephone IS NOT NULL
-            AND DATE(p.created) BETWEEN ? AND ?
-            AND p.view_key IS NOT NULL AND p.view_key <> ''
-            GROUP BY p.campaign_id, link
+      // //unique_leads fetch data from the participant and check if the view_key matches the one in the view table.
+      const [uniqueLeadsResult] = await poolConnection.query(
+      `
+      SELECT 
+      p.campaign_id,
+      CASE
+      WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+      ELSE v.view_r
+      END AS link,
+      COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads
+      FROM 
+      ${db}.participant p
+      JOIN 
+      ${db}.view v ON p.view_key = v.view_key
+      LEFT JOIN 
+      ${db}.banner b ON v.banner_id = b.id
+      WHERE 
+      p.telephone IS NOT NULL
+      AND DATE(p.created) BETWEEN ? AND ?
+      AND p.view_key IS NOT NULL AND p.view_key <> ''
+      AND NOT (
+      (v.view_r IS NULL OR TRIM(v.view_r) = '')
+      AND v.banner_id IS NULL
+      )
+      GROUP BY 
+      p.campaign_id, link
+
                                               
-            UNION
+      UNION
                 
-            SELECT p.campaign_id, NULL AS link, 
+      SELECT p.campaign_id, NULL AS link, 
   
-            COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads
+      COUNT(DISTINCT CASE WHEN status = 'PAID' THEN telephone END) AS unique_leads
               
-            FROM ${db}.participant p
-            WHERE p.telephone IS NOT NULL
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-            `,
-          [startDate, endDate, startDate, endDate]
-        );
+      FROM ${db}.participant p
+      WHERE p.telephone IS NOT NULL
+      AND DATE(p.created) BETWEEN ? AND ?
+      GROUP BY p.campaign_id
+      `,
+      [startDate, endDate, startDate, endDate]
+      );
 
         //recuring_leads fetch data from the participant and check if the view_key matches the one in the view table.
         const [recuringLeadsResult] = await poolConnection.query(
           `
-            SELECT p.campaign_id, v.view_r AS link,
-            COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
-            
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE p.telephone IS NOT NULL
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id, link
-              
-            UNION
+        SELECT 
+        p.campaign_id,
+        CASE
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+        ELSE v.view_r
+        END AS link,
+        COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
+        FROM 
+        ${db}.participant p
+        JOIN 
+        ${db}.view v ON p.view_key = v.view_key
+        LEFT JOIN 
+        ${db}.banner b ON v.banner_id = b.id
+        WHERE 
+        p.telephone IS NOT NULL
+        AND DATE(p.created) BETWEEN ? AND ?
+        AND NOT (
+        (v.view_r IS NULL OR TRIM(v.view_r) = '')
+        AND v.banner_id IS NULL
+        )
+        GROUP BY 
+        p.campaign_id, link
+
+        UNION
                           
-            SELECT p.campaign_id, NULL AS link, 
+        SELECT p.campaign_id, NULL AS link, 
   
-            COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
+        COUNT(DISTINCT CASE WHEN custom_text4 = 'ACTIVE' THEN telephone END) AS recuring_leads
   
-            FROM ${db}.participant p
-            WHERE p.telephone IS NOT NULL
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-            `,
-          [startDate, endDate, startDate, endDate]
+        FROM ${db}.participant p
+        WHERE p.telephone IS NOT NULL
+        AND DATE(p.created) BETWEEN ? AND ?
+        GROUP BY p.campaign_id
+        `,
+        [startDate, endDate, startDate, endDate]
         );
 
         // sms_parts fetch data from the participant and check if the view_key matches the one in the view table.
         const [smsPartsResult] = await poolConnection.query(
           `
-            SELECT  
-            p.campaign_id, 
-            v.view_r AS link,
-            SUM(
-                CASE
-                  WHEN report_download_email IS NOT NULL
-                    THEN (
-                    SELECT SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(json_obj, '$.parts')) AS UNSIGNED))
-                      FROM (
-                      SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(report_download_email, '-'), '-', numbers.n), '-', -1)) AS json_obj
-                        FROM (
+        SELECT  
+        p.campaign_id, 
+        CASE
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+        ELSE v.view_r
+        END AS link,
+        SUM(
+        CASE
+            WHEN report_download_email IS NOT NULL THEN (
+                SELECT SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(json_obj, '$.parts')) AS UNSIGNED))
+                FROM (
+                    SELECT TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(report_download_email, '-'), '-', numbers.n), '-', -1)) AS json_obj
+                    FROM (
                         SELECT 1 AS n UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
-                        ) AS numbers
-                          WHERE TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(report_download_email, '-'), '-', numbers.n), '-', -1)) != ''
-                          AND JSON_VALID(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(report_download_email, '-'), '-', numbers.n), '-', -1)))
-                        ) AS json_objects
-                      )
-                      ELSE 0
-                  END
-              ) AS sms_parts
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE p.created BETWEEN ? AND ?
-            GROUP BY p.campaign_id, link
+                    ) AS numbers
+                    WHERE TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(report_download_email, '-'), '-', numbers.n), '-', -1)) != ''
+                      AND JSON_VALID(TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(CONCAT(report_download_email, '-'), '-', numbers.n), '-', -1)))
+                ) AS json_objects
+            )
+            ELSE 0
+        END
+        ) AS sms_parts
+        FROM ${db}.participant p
+        JOIN ${db}.view v ON p.view_key = v.view_key
+        LEFT JOIN ${db}.banner b ON v.banner_id = b.id
+        WHERE p.created BETWEEN ? AND ?
+        AND NOT (
+        (v.view_r IS NULL OR TRIM(v.view_r) = '')
+        AND v.banner_id IS NULL
+        )
+        GROUP BY p.campaign_id, link
+
   
             UNION
                             
@@ -254,55 +332,74 @@ export const reportService = async () => {
         //Giftcards_sent fetch data from the participant and check if the view_key matches the one in the view table.
         const [giftcardsSendResult] = await poolConnection.query(
           `
-            SELECT p.campaign_id, v.view_r AS link,
-            
-            COUNT(*) AS giftcards_sent
-                        
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE p.coupon_send = 1
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id, link
+        SELECT 
+        p.campaign_id,
+        CASE
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title  -- Fall 1
+        ELSE v.view_r  -- Fall 2 & 4
+        END AS link,
+        COUNT(*) AS giftcards_sent
+        FROM ${db}.participant p
+        JOIN ${db}.view v ON p.view_key = v.view_key
+        LEFT JOIN ${db}.banner b ON v.banner_id = b.id
+        WHERE 
+        p.coupon_send = 1
+        AND DATE(p.created) BETWEEN ? AND ?
+        AND NOT (
+        (v.view_r IS NULL OR TRIM(v.view_r) = '')
+        AND v.banner_id IS NULL
+        )
+        GROUP BY p.campaign_id, link
+
   
-            UNION
+        UNION
                 
-            SELECT p.campaign_id, NULL AS link, 
+        SELECT p.campaign_id, NULL AS link, 
   
-            COUNT(*) AS giftcards_sent
+        COUNT(*) AS giftcards_sent
   
-            FROM ${db}.participant p
-            WHERE p.coupon_send = 1
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-            `,
-          [startDate, endDate, startDate, endDate]
+        FROM ${db}.participant p
+        WHERE p.coupon_send = 1
+        AND DATE(p.created) BETWEEN ? AND ?
+        GROUP BY p.campaign_id
+        `,
+        [startDate, endDate, startDate, endDate]
         );
 
         //money_received fetch data from the participant and check if the view_key matches the one in the view table.
         const [moneyReceivedResult] = await poolConnection.query(
           `
-            SELECT p.campaign_id, v.view_r AS link,
-          
-            SUM(amount) AS money_received
-            
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE p.status = 'PAID'
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id, link
+        SELECT 
+        p.campaign_id,
+        CASE
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+        ELSE v.view_r
+        END AS link,
+        SUM(amount) AS money_received
+        FROM ${db}.participant p
+        JOIN ${db}.view v ON p.view_key = v.view_key
+        LEFT JOIN ${db}.banner b ON v.banner_id = b.id
+        WHERE p.status = 'PAID'
+        AND DATE(p.created) BETWEEN ? AND ?
+        AND NOT (
+        (v.view_r IS NULL OR TRIM(v.view_r) = '') 
+        AND v.banner_id IS NULL
+        )
+        GROUP BY p.campaign_id, link
+
                 
-            UNION 
+        UNION 
                 
-            SELECT p.campaign_id, NULL AS link, 
+        SELECT p.campaign_id, NULL AS link, 
   
-            SUM(amount) AS money_received
+        SUM(amount) AS money_received
   
-            FROM ${db}.participant p
-            WHERE p.status = 'PAID'
-            AND DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-            `,
-          [startDate, endDate, startDate, endDate]
+        FROM ${db}.participant p
+        WHERE p.status = 'PAID'
+        AND DATE(p.created) BETWEEN ? AND ?
+        GROUP BY p.campaign_id
+        `,
+        [startDate, endDate, startDate, endDate]
         );
 
         //avarage_payment fetch data from the participant and check if the view_key matches the one in the view table.
@@ -334,81 +431,100 @@ export const reportService = async () => {
         //engagement_time fetch data from the participant and check if the view_key matches the one in the view table.
         const [engagementTimeResult] = await poolConnection.query(
           `
-            SELECT p.campaign_id, v.view_r AS link,
-              
-            SUM(time_spent) AS engagement_time 
-                        
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id, link 
+        SELECT 
+        p.campaign_id,
+        CASE
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+        ELSE v.view_r
+        END AS link,
+        SUM(time_spent) AS engagement_time
+        FROM ${db}.participant p
+        JOIN ${db}.view v ON p.view_key = v.view_key
+        LEFT JOIN ${db}.banner b ON v.banner_id = b.id
+        WHERE DATE(p.created) BETWEEN ? AND ?
+        AND NOT (
+        (v.view_r IS NULL OR TRIM(v.view_r) = '') 
+        AND v.banner_id IS NULL
+        )
+        GROUP BY p.campaign_id, link
+
   
-            UNION 
+        UNION 
                 
-            SELECT p.campaign_id, NULL AS link, 
+        SELECT p.campaign_id, NULL AS link, 
           
-            SUM(time_spent) AS engagement_time 
-            FROM ${db}.participant p
-            WHERE DATE(p.created) BETWEEN ? AND ?
-            GROUP BY p.campaign_id
-            `,
-          [startDate, endDate, startDate, endDate]
+        SUM(time_spent) AS engagement_time 
+        FROM ${db}.participant p
+        WHERE DATE(p.created) BETWEEN ? AND ?
+        GROUP BY p.campaign_id
+        `,
+        [startDate, endDate, startDate, endDate]
         );
 
         //answers_percentage fetch data from the participant and check if the view_key matches the one in the view table.
         const [answersPercentageResult] = await poolConnection.query(
           `
-            SELECT p.campaign_id, v.view_r AS link,
-   
-            COUNT(*) AS answers_percentage
-            FROM ${db}.participant p
-            JOIN ${db}.view v ON p.view_key = v.view_key
-            WHERE DATE(p.created) BETWEEN ? AND ?
+        SELECT 
+        p.campaign_id,
+        CASE
+        WHEN v.view_r = 'null' AND v.banner_id IS NOT NULL THEN b.title
+        ELSE v.view_r
+        END AS link,
+        COUNT(*) AS answers_percentage
+        FROM ${db}.participant p
+        JOIN ${db}.view v ON p.view_key = v.view_key
+        LEFT JOIN ${db}.banner b ON v.banner_id = b.id
+        WHERE DATE(p.created) BETWEEN ? AND ?
+        AND p.view_key IS NOT NULL AND p.view_key <> ''
+        AND (p.status = 'ERROR' OR p.status = 'DECLINED')
+        AND NOT (
+        (v.view_r IS NULL OR TRIM(v.view_r) = '')
+        AND v.banner_id IS NULL
+        )
+        GROUP BY p.campaign_id, link
+
   
-            AND p.view_key IS NOT NULL AND p.view_key <> ''
-            AND (p.status = 'ERROR' OR p.status = 'DECLINED')
-            GROUP BY p.campaign_id, link
+        UNION 
   
-            UNION 
+        SELECT p.campaign_id, NULL AS link, 
+        COUNT(*) AS answers_percentage
   
-            SELECT p.campaign_id, NULL AS link, 
-            COUNT(*) AS answers_percentage
+        FROM ${db}.participant p
+        WHERE DATE(p.created) BETWEEN ? AND ?
   
-            FROM ${db}.participant p
-            WHERE DATE(p.created) BETWEEN ? AND ?
-  
-            AND (p.status = 'ERROR' OR p.status = 'DECLINED')
-            GROUP BY p.campaign_id, link
-            `,
-          [startDate, endDate, startDate, endDate]
+        AND (p.status = 'ERROR' OR p.status = 'DECLINED')
+        GROUP BY p.campaign_id, link
+        `,
+        [startDate, endDate, startDate, endDate]
         );
 
-        // //campaign_name fetch data from the view and check if the campaign_id from view matches the id in the campaign table.
-        const [campaignNameResult] = await poolConnection.query(  `
-          SELECT v.campaign_id, v.view_r AS link,
-          c.name AS campaign_name
-
-          FROM ${db}.view v
-          JOIN ${db}.campaign c ON v.campaign_id = c.id
-          WHERE DATE(v.created) BETWEEN ? AND ?
-
-          GROUP BY v.campaign_id, link
-          `,
-        [startDate, endDate]);
 
         // //flow_mode_id fetch data from the view and check if the campaign_id from view matches the id in the campaign table.
         const [flowModeIdResult] = await poolConnection.query(  `
-          SELECT v.campaign_id, v.view_r AS link,
-          c.flow_mode_id AS flow_mode_id
+        SELECT v.campaign_id, v.view_r AS link,
+        c.flow_mode_id AS flow_mode_id
+        
+        FROM ${db}.view v
+        JOIN ${db}.campaign c ON v.campaign_id = c.id
+        WHERE DATE(v.created) BETWEEN ? AND ?
+        
+        GROUP BY v.campaign_id, link
+        `,
+        [startDate, endDate]);
 
-          FROM ${db}.view v
-          JOIN ${db}.campaign c ON v.campaign_id = c.id
-          WHERE DATE(v.created) BETWEEN ? AND ?
-
-          GROUP BY v.campaign_id, link
+        // //campaign_name fetch data from the view and check if the campaign_id from view matches the id in the campaign table.
+        const [campaignNameResult] = await poolConnection.query(  `
+        SELECT 
+          v.campaign_id, 
+          v.view_r AS link,
+          LEFT(c.name, 100) AS campaign_name
+        FROM ${db}.view v
+        JOIN ${db}.campaign c ON v.campaign_id = c.id
+        WHERE DATE(v.created) BETWEEN ? AND ?
+        GROUP BY v.campaign_id, link
           `,
         [startDate, endDate]);
-      
+
         if (
           !viewLinkResult?.length &&
           !viewCampaignResult?.length &&
@@ -445,8 +561,8 @@ export const reportService = async () => {
           // avaragePaymentResult,
           engagementTimeResult,
           answersPercentageResult,
-          campaignNameResult,
           flowModeIdResult,
+          campaignNameResult,
         });
 
         console.log(`Process klar för ${db}`);
